@@ -1,0 +1,37 @@
+# WHY Prometheus (pull-based) instead of services pushing metrics?
+# Pull model:
+#   - Prometheus decides when to scrape — services don't need to know about monitoring
+#   - If a service is down, Prometheus detects it immediately (scrape fails)
+#   - No metric data loss from service-side buffer overflow
+# Push model (like StatsD):
+#   - Services push when they want — can overwhelm the collector
+#   - If the collector is down, metrics are lost
+#   - Services need to know the collector's address
+
+global:
+  scrape_interval: 15s     # How often to pull metrics from each target
+  evaluation_interval: 15s  # How often to evaluate alerting rules
+
+scrape_configs:
+  # Traefik exposes gateway-level metrics: request count, latency, errors per route
+  - job_name: "traefik"
+    static_configs:
+      - targets: ["gateway:8080"]
+
+  # Each service exposes /health — Prometheus checks if they're alive
+  # In production, services would expose /metrics with detailed counters.
+  # For this project, health endpoint + Traefik metrics gives us enough.
+  - job_name: "auth-service"
+    metrics_path: "/api/auth/health"
+    static_configs:
+      - targets: ["auth-service:3000"]
+
+  - job_name: "user-service"
+    metrics_path: "/api/users/health"
+    static_configs:
+      - targets: ["user-service:3000"]
+
+  - job_name: "inventory-service"
+    metrics_path: "/api/inventory/health"
+    static_configs:
+      - targets: ["inventory-service:3000"]

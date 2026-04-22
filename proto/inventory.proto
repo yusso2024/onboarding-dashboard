@@ -1,0 +1,42 @@
+// WHY Protocol Buffers (.proto files)?
+// This file is the CONTRACT between User Service and Inventory Service.
+// Both services generate code from this file. If one side changes the
+// contract, the other side fails to compile — catching breaking changes
+// at build time, not at runtime.
+//
+// Compare to REST/JSON: you can send any JSON shape and it might
+// work, might crash, might silently drop fields. Proto enforces
+// the schema at the protocol level.
+
+syntax = "proto3";
+
+package inventory;
+
+option go_package = "inventory-service/proto/inventorypb";
+
+// AssignStarterPackRequest is sent by User Service when a user
+// completes onboarding. The user_id identifies who gets the assets.
+message AssignStarterPackRequest {
+    int32 user_id = 1;
+}
+
+// Asset represents a single assigned resource.
+message Asset {
+    string id = 1;
+    string name = 2;
+    string category = 3;
+    string status = 4;
+}
+
+// AssignStarterPackResponse contains all assets assigned to the user.
+message AssignStarterPackResponse {
+    repeated Asset assets = 1;
+    string message = 2;
+}
+
+// InventoryGrpc is the internal RPC service for inter-service calls.
+// This is NOT exposed through the API gateway — only other services
+// can call it. External clients use REST via the gateway.
+service InventoryGrpc {
+    rpc AssignStarterPack(AssignStarterPackRequest) returns (AssignStarterPackResponse);
+}

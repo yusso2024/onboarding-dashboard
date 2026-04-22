@@ -1,0 +1,41 @@
+# Dynamic routing configuration for Traefik
+# WHY file provider instead of Docker provider?
+# Docker provider auto-discovers via labels — convenient but opaque.
+# File provider makes routing explicit — you see exactly what goes where.
+# In production with Kubernetes, you'd use IngressRoute (similar to file provider).
+
+http:
+  routers:
+    auth:
+      rule: "PathPrefix(`/api/auth`)"
+      entryPoints:
+        - web
+      service: auth-service
+
+    user:
+      rule: "PathPrefix(`/api/users`)"
+      entryPoints:
+        - web
+      service: user-service
+
+    inventory:
+      rule: "PathPrefix(`/api/inventory`)"
+      entryPoints:
+        - web
+      service: inventory-service
+
+  services:
+    auth-service:
+      loadBalancer:
+        servers:
+          - url: "http://auth-service:3000"
+
+    user-service:
+      loadBalancer:
+        servers:
+          - url: "http://user-service:3000"
+
+    inventory-service:
+      loadBalancer:
+        servers:
+          - url: "http://inventory-service:3000"
