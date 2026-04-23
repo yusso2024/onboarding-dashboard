@@ -1,5 +1,22 @@
 services:
 
+
+  # ========================================
+  # FRONTEND
+  # ========================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    networks:
+      - frontend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 32M
+          cpus: "0.05"
+
   # ========================================
   # API GATEWAY
   # ========================================

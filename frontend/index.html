@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Onboarding Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Auth Screen -->
+        <div id="auth-screen" class="screen">
+            <div class="card auth-card">
+                <h1>Onboarding Dashboard</h1>
+                <p class="subtitle">Microservices Demo</p>
+                <div class="tabs">
+                    <button class="tab active" onclick="showTab('login')">Login</button>
+                    <button class="tab" onclick="showTab('register')">Register</button>
+                </div>
+                <form id="login-form" onsubmit="handleLogin(event)">
+                    <input type="email" id="login-email" placeholder="Email" required>
+                    <input type="password" id="login-password" placeholder="Password" required>
+                    <button type="submit" class="btn primary">Login</button>
+                </form>
+                <form id="register-form" class="hidden" onsubmit="handleRegister(event)">
+                    <input type="email" id="reg-email" placeholder="Email" required>
+                    <input type="password" id="reg-password" placeholder="Password" required>
+                    <input type="text" id="reg-name" placeholder="Display Name" required>
+                    <select id="reg-role">
+                        <option value="engineer">Engineer</option>
+                        <option value="designer">Designer</option>
+                        <option value="manager">Manager</option>
+                    </select>
+                    <button type="submit" class="btn primary">Register</button>
+                </form>
+                <div id="auth-error" class="error hidden"></div>
+            </div>
+        </div>
+
+        <!-- Dashboard Screen -->
+        <div id="dashboard-screen" class="screen hidden">
+            <header>
+                <h1>Onboarding Dashboard</h1>
+                <div class="header-right">
+                    <span id="user-email"></span>
+                    <button class="btn small" onclick="logout()">Logout</button>
+                </div>
+            </header>
+
+            <div class="dashboard-grid">
+                <!-- Health Status -->
+                <div class="card">
+                    <h2>Service Health</h2>
+                    <div id="health-status" class="health-grid">
+                        <div class="health-item" id="health-auth"><span class="dot"></span> Auth</div>
+                        <div class="health-item" id="health-user"><span class="dot"></span> User</div>
+                        <div class="health-item" id="health-inventory"><span class="dot"></span> Inventory</div>
+                    </div>
+                </div>
+
+                <!-- Profile Card -->
+                <div class="card">
+                    <h2>Profile</h2>
+                    <div id="profile-info">
+                        <p><strong>Name:</strong> <span id="profile-name">-</span></p>
+                        <p><strong>Role:</strong> <span id="profile-role">-</span></p>
+                    </div>
+                </div>
+
+                <!-- Onboarding Progress -->
+                <div class="card full-width">
+                    <h2>Onboarding Progress</h2>
+                    <div id="onboarding-steps" class="stepper">
+                        <div class="step" data-step="1"><span class="step-num">1</span><span class="step-label">Account</span></div>
+                        <div class="step" data-step="2"><span class="step-num">2</span><span class="step-label">Profile</span></div>
+                        <div class="step" data-step="3"><span class="step-num">3</span><span class="step-label">Setup</span></div>
+                        <div class="step" data-step="4"><span class="step-num">4</span><span class="step-label">Review</span></div>
+                        <div class="step" data-step="5"><span class="step-num">5</span><span class="step-label">Complete</span></div>
+                    </div>
+                    <div id="onboarding-actions">
+                        <button id="next-step-btn" class="btn primary" onclick="advanceStep()">Next Step</button>
+                        <span id="onboarding-status"></span>
+                    </div>
+                </div>
+
+                <!-- Inventory -->
+                <div class="card full-width">
+                    <h2>Inventory Assets</h2>
+                    <div id="asset-controls">
+                        <select id="asset-filter" onchange="loadAssets()">
+                            <option value="">All Categories</option>
+                            <option value="vm_template">VM Templates</option>
+                            <option value="document">Documents</option>
+                            <option value="api_key">API Keys</option>
+                        </select>
+                        <button class="btn small" onclick="showAddAsset()">+ Add Asset</button>
+                    </div>
+                    <div id="add-asset-form" class="hidden">
+                        <input type="text" id="asset-name" placeholder="Asset name">
+                        <select id="asset-category">
+                            <option value="vm_template">VM Template</option>
+                            <option value="document">Document</option>
+                            <option value="api_key">API Key</option>
+                        </select>
+                        <button class="btn primary small" onclick="createAsset()">Create</button>
+                        <button class="btn small" onclick="hideAddAsset()">Cancel</button>
+                    </div>
+                    <table id="assets-table">
+                        <thead>
+                            <tr><th>Name</th><th>Category</th><th>Status</th><th>Assigned To</th></tr>
+                        </thead>
+                        <tbody id="assets-body"></tbody>
+                    </table>
+                    <p id="no-assets" class="hidden muted">No assets found.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
