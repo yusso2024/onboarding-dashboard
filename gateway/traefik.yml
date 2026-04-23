@@ -1,8 +1,10 @@
 # Dynamic routing configuration for Traefik
-# WHY file provider instead of Docker provider?
-# Docker provider auto-discovers via labels — convenient but opaque.
-# File provider makes routing explicit — you see exactly what goes where.
-# In production with Kubernetes, you'd use IngressRoute (similar to file provider).
+#
+# Traffic flow WITH service mesh:
+#   Client → Traefik → Envoy Sidecar Proxy → Service
+#
+# The Envoy proxy adds: retries, timeouts, circuit breaking
+# WITHOUT any changes to the Go services.
 
 http:
   routers:
@@ -25,17 +27,19 @@ http:
       service: inventory-service
 
   services:
+    # Routes to Envoy sidecar proxies, NOT directly to services
+    # Envoy listens on port 8080 and forwards to the service on port 3000
     auth-service:
       loadBalancer:
         servers:
-          - url: "http://auth-service:3000"
+          - url: "http://auth-proxy:8080"
 
     user-service:
       loadBalancer:
         servers:
-          - url: "http://user-service:3000"
+          - url: "http://user-proxy:8080"
 
     inventory-service:
       loadBalancer:
         servers:
-          - url: "http://inventory-service:3000"
+          - url: "http://inventory-proxy:8080"

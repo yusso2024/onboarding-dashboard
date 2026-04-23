@@ -1,26 +1,12 @@
-# WHY Prometheus (pull-based) instead of services pushing metrics?
-# Pull model:
-#   - Prometheus decides when to scrape — services don't need to know about monitoring
-#   - If a service is down, Prometheus detects it immediately (scrape fails)
-#   - No metric data loss from service-side buffer overflow
-# Push model (like StatsD):
-#   - Services push when they want — can overwhelm the collector
-#   - If the collector is down, metrics are lost
-#   - Services need to know the collector's address
-
 global:
-  scrape_interval: 15s     # How often to pull metrics from each target
-  evaluation_interval: 15s  # How often to evaluate alerting rules
+  scrape_interval: 15s
+  evaluation_interval: 15s
 
 scrape_configs:
-  # Traefik exposes gateway-level metrics: request count, latency, errors per route
   - job_name: "traefik"
     static_configs:
       - targets: ["gateway:8080"]
 
-  # Each service exposes /health — Prometheus checks if they're alive
-  # In production, services would expose /metrics with detailed counters.
-  # For this project, health endpoint + Traefik metrics gives us enough.
   - job_name: "auth-service"
     metrics_path: "/api/auth/health"
     static_configs:
@@ -35,3 +21,21 @@ scrape_configs:
     metrics_path: "/api/inventory/health"
     static_configs:
       - targets: ["inventory-service:3000"]
+
+  # Envoy sidecar metrics — each proxy exposes stats on :9901
+  # These give you per-service request counts, latency histograms,
+  # circuit breaker state, retry counts — all from the proxy layer.
+  - job_name: "envoy-auth"
+    metrics_path: "/stats/prometheus"
+    static_configs:
+      - targets: ["auth-proxy:9901"]
+
+  - job_name: "envoy-user"
+    metrics_path: "/stats/prometheus"
+    static_configs:
+      - targets: ["user-proxy:9901"]
+
+  - job_name: "envoy-inventory"
+    metrics_path: "/stats/prometheus"
+    static_configs:
+      - targets: ["inventory-proxy:9901"]

@@ -241,6 +241,62 @@ services:
           cpus: "0.25"
 
 # ========================================
+
+  # ========================================
+  # SERVICE MESH — ENVOY SIDECAR PROXIES
+  # ========================================
+  # WHY sidecars instead of modifying services?
+  # The sidecar pattern keeps infrastructure concerns (retries, timeouts,
+  # circuit breaking) separate from business logic. Your Go code stays
+  # focused on business rules. The mesh handles reliability.
+  #
+  # Traffic flow: Traefik → Envoy Sidecar → Service
+  # The service doesn't know the proxy exists.
+
+  auth-proxy:
+    image: envoyproxy/envoy:v1.31-latest
+    volumes:
+      - ./mesh/envoy-auth.yml:/etc/envoy/envoy.yaml:ro
+    depends_on:
+      - auth-service
+    networks:
+      - backend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: 0.10
+
+  user-proxy:
+    image: envoyproxy/envoy:v1.31-latest
+    volumes:
+      - ./mesh/envoy-user.yml:/etc/envoy/envoy.yaml:ro
+    depends_on:
+      - user-service
+    networks:
+      - backend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: 0.10
+
+  inventory-proxy:
+    image: envoyproxy/envoy:v1.31-latest
+    volumes:
+      - ./mesh/envoy-inventory.yml:/etc/envoy/envoy.yaml:ro
+    depends_on:
+      - inventory-service
+    networks:
+      - backend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: 0.10
   # ========================================
   # DISTRIBUTED TRACING
   # ========================================
