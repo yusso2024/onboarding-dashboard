@@ -1,43 +1,52 @@
 # Microservices Onboarding Dashboard
 
-A production-grade microservices architecture built in Go for learning systems design patterns. Three independent services communicating through an API gateway and gRPC, with separate databases, Redis caching, circuit breakers, distributed tracing, and Prometheus/Grafana monitoring.
+A production-grade microservices architecture built in Go for learning systems design patterns. Three independent services communicating through an API gateway, Envoy service mesh, and gRPC, with separate databases, Redis caching, circuit breakers, distributed tracing, and Prometheus/Grafana monitoring.
 
-**Built**: April 22, 2026 | **Runtime**: Docker Compose on Ubuntu 24.04 LTS
+**Built**: April 22-23, 2026 | **Runtime**: Docker Compose on Ubuntu 24.04 LTS
+**Repo**: [github.com/yusso2024/onboarding-dashboard](https://github.com/yusso2024/onboarding-dashboard)
 
 ---
 
 ## Architecture
 
 ```
-                    ┌─────────────────┐
-                    │  Client/Browser  │
-                    └────────┬────────┘
-                             │ HTTP
-                    ┌────────▼────────┐
-                    │   API Gateway    │  :8100
-                    │   (Traefik)      │  Dashboard :8101
-                    └──┬─────┬─────┬──┘
-                       │     │     │
-           ┌───────────┘     │     └───────────┐
-           │                 │                 │
-   ┌───────▼───────┐ ┌──────▼──────┐ ┌────────▼──────┐
-   │  Auth Service  │ │ User Service│ │Inventory Svc  │
-   │  (Go, :3000)   │ │ (Go, :3000) │ │ HTTP :3000    │
-   └───────┬───────┘ └──────┬──────┘ │ gRPC :4000    │
-           │                │    gRPC └────────┬──────┘
-   ┌───────▼───────┐ ┌──────▼──────┐ ┌────────▼──────┐
-   │  PostgreSQL    │ │ PostgreSQL  │ │   MongoDB     │
-   │  (auth_db)     │ │ (user_db)   │ │ (inventory_db)│
-   └───────────────┘ └─────────────┘ └───────────────┘
-           │                 │                 │
-           └────────┬────────┴────────┬────────┘
-                    │                 │
-            ┌───────▼───────┐ ┌──────▼──────────┐
-            │     Redis     │ │   Prometheus     │
-            │   (Cache)     │ │   + Grafana      │
-            └───────────────┘ │   + Jaeger       │
-                              │   (Observability)│
-                              └─────────────────┘
+                      ┌─────────────────┐
+                      │  Client/Browser  │
+                      └────────┬────────┘
+                               │ HTTP
+                      ┌────────▼────────┐
+                      │   API Gateway    │  :8100
+                      │   (Traefik)      │  Dashboard :8101
+                      └──┬─────┬─────┬──┘
+                         │     │     │
+             ┌───────────┘     │     └───────────┐
+             │                 │                 │
+     ┌───────▼───────┐ ┌──────▼──────┐ ┌────────▼──────┐
+     │  Envoy Proxy   │ │ Envoy Proxy │ │  Envoy Proxy  │
+     │  (auth-proxy)  │ │ (user-proxy)│ │  (inv-proxy)  │
+     │  retries,      │ │ retries,    │ │  retries,     │
+     │  timeouts,     │ │ timeouts,   │ │  timeouts,    │
+     │  circuit break │ │ circuit br. │ │  circuit br.  │
+     └───────┬───────┘ └──────┬──────┘ └────────┬──────┘
+             │                 │                 │
+     ┌───────▼───────┐ ┌──────▼──────┐ ┌────────▼──────┐
+     │  Auth Service  │ │ User Service│ │Inventory Svc  │
+     │  (Go, :3000)   │ │ (Go, :3000) │ │ HTTP :3000    │
+     └───────┬───────┘ └──────┬──────┘ │ gRPC :4000    │
+             │                │    gRPC └────────┬──────┘
+     ┌───────▼───────┐ ┌──────▼──────┐ ┌────────▼──────┐
+     │  PostgreSQL    │ │ PostgreSQL  │ │   MongoDB     │
+     │  (auth_db)     │ │ (user_db)   │ │ (inventory_db)│
+     └───────────────┘ └─────────────┘ └───────────────┘
+             │                 │                 │
+             └────────┬────────┴────────┬────────┘
+                      │                 │
+              ┌───────▼───────┐ ┌──────▼──────────┐
+              │     Redis     │ │   Prometheus     │
+              │   (Cache)     │ │   + Grafana      │
+              └───────────────┘ │   + Jaeger       │
+                                │  (Observability) │
+                                └─────────────────┘
 ```
 
 ## Systems Design Patterns Implemented
@@ -46,14 +55,16 @@ A production-grade microservices architecture built in Go for learning systems d
 |---------|-------|-----|
 | **Database-per-Service** | Each service has its own DB | Schema isolation, independent scaling, blast radius containment |
 | **API Gateway** | Traefik routes all external traffic | Single entry point, cross-cutting concerns, service discovery |
+| **Service Mesh** | Envoy sidecar proxies per service | Retries, timeouts, circuit breaking at infrastructure level — zero code changes |
 | **Cache-Aside** | User + Inventory services use Redis | 100x read-to-write ratio on profiles; sub-ms reads vs 5-10ms DB |
-| **Circuit Breaker** | Inventory Service → Redis | Graceful degradation when Redis dies; fail fast, not slow |
+| **Circuit Breaker** | Inventory Service (code) + Envoy (proxy) | Graceful degradation when dependencies fail; fail fast, not slow |
 | **Distributed Tracing** | OpenTelemetry + Jaeger across all services | Trace requests across service boundaries; find latency bottlenecks |
-| **gRPC Inter-Service** | User Service → Inventory Service | Binary protocol, strict contracts via protobuf, 10x smaller than JSON |
+| **gRPC Inter-Service** | User Service calls Inventory Service | Binary protocol, strict contracts via protobuf, 10x smaller than JSON |
+| **Sidecar Pattern** | Envoy proxy next to each service | Infrastructure concerns separated from business logic |
 | **Dependency Injection** | Handler structs receive DB/Redis clients | Testability, explicit dependencies, no hidden global state |
 | **Health Checks** | Every service exposes /health | Docker healthchecks, load balancer readiness, dependency-aware |
 | **Graceful Degradation** | Services work without Redis (slower) | Cache is an optimization, not a requirement |
-| **Event-Driven Triggers** | Onboarding complete → gRPC starter pack | Eventual consistency, async processing, domain separation |
+| **Event-Driven Triggers** | Onboarding complete triggers gRPC starter pack | Eventual consistency, async processing, domain separation |
 | **Network Segmentation** | frontend/backend/monitoring networks | Defense in depth; databases never exposed externally |
 | **Resource Limits** | CPU/memory caps per container | Fair scheduling, OOM prevention on shared infrastructure |
 
@@ -66,7 +77,7 @@ A production-grade microservices architecture built in Go for learning systems d
 ### Start Everything
 ```bash
 cd ~/onboarding-dashboard
-cp .env.example .env  # Or create .env with the required variables
+cp .env.example .env  # Edit passwords before production use
 docker compose up -d --build
 ```
 
@@ -97,13 +108,13 @@ curl -s -X POST http://localhost:8100/api/users/profile \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"display_name":"Jane Smith","role":"engineer"}'
 
-# 3. Complete onboarding (triggers gRPC → auto-assigns starter pack)
+# 3. Complete onboarding (triggers gRPC -> auto-assigns starter pack)
 curl -s -X PATCH http://localhost:8100/api/users/onboarding \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"onboarding_step":5}'
 
-# 4. View assigned assets
+# 4. View assigned assets (3 starter pack items auto-created via gRPC)
 curl -s http://localhost:8100/api/inventory/assets | python3 -m json.tool
 ```
 
@@ -123,7 +134,7 @@ When onboarding reaches step 5, the User Service calls the Inventory Service via
 |--------|----------|------|-------------|
 | POST | `/api/users/profile` | JWT | Create profile |
 | GET | `/api/users/profile/me` | JWT | Get profile (cache-aside) |
-| PATCH | `/api/users/onboarding` | JWT | Advance onboarding step |
+| PATCH | `/api/users/onboarding` | JWT | Advance onboarding (step 5 = gRPC trigger) |
 | GET | `/api/users/health` | No | Health check |
 
 #### Inventory Service (`/api/inventory`)
@@ -137,30 +148,50 @@ When onboarding reaches step 5, the User Service calls the Inventory Service via
 #### Internal gRPC (not exposed via gateway)
 | Service | Port | RPC | Trigger |
 |---------|------|-----|---------|
-| Inventory | 4000 | `AssignStarterPack` | User completes onboarding |
+| Inventory | 4000 | `AssignStarterPack` | User completes onboarding (step 5) |
 
 ## Deep Dive: Key Patterns
 
-### Circuit Breaker (Inventory → Redis)
+### Service Mesh (Envoy Sidecar Proxies)
 
-When Redis is down, instead of failing every request:
+Every request flows through an Envoy proxy before reaching the service:
 
 ```
-CLOSED (normal)     → Requests flow to Redis
-         ↓ (5 consecutive failures)
-OPEN (tripped)      → Skip Redis, go straight to MongoDB
-         ↓ (after 30 seconds)
-HALF-OPEN (testing) → Try ONE Redis request
-         ↓ (success)              ↓ (failure)
-CLOSED (recovered)       OPEN (still broken)
+Client -> Traefik -> Envoy auth-proxy -> Auth Service
+                     ^
+                     | Automatic retries (3x on 5xx)
+                     | Timeouts (10s total, 3s per try)
+                     | Circuit breaking (max 100 connections)
+                     | Zero Go code changes
 ```
+
+The `Server: envoy` response header proves traffic flows through the mesh.
+
+**Why this matters**: Add a 4th service? Just add another Envoy sidecar config. No retry logic to code. No timeout handling to implement. The mesh handles it.
+
+Config: `mesh/envoy-auth.yml`, `mesh/envoy-user.yml`, `mesh/envoy-inventory.yml`
+
+### Circuit Breaker (Inventory -> Redis)
+
+Two layers of circuit breaking:
+
+1. **Application level** (`internal/circuitbreaker/breaker.go`): Custom Go implementation
+   ```
+   CLOSED -> OPEN (after 5 failures) -> HALF-OPEN (probe after 30s) -> CLOSED
+   ```
+
+2. **Mesh level** (Envoy config): Proxy-level connection limits
+   ```yaml
+   circuit_breakers:
+     thresholds:
+       - max_connections: 100
+         max_pending_requests: 50
+   ```
 
 Health endpoint reports circuit breaker state:
 ```json
 {"status": "healthy", "redis_circuit_breaker": "OPEN"}
 ```
-
-The service stays functional — just slower (DB-only, no cache).
 
 ### gRPC Inter-Service Communication
 
@@ -170,56 +201,54 @@ service InventoryGrpc {
 }
 ```
 
-User Service calls Inventory Service internally via gRPC when onboarding completes. This demonstrates:
 - **Data ownership**: User Service doesn't write to inventory DB directly
 - **Protobuf contracts**: Type-safe, binary, auto-generated client/server code
 - **Async processing**: gRPC call runs in a goroutine; user gets immediate response
+- Proto definition: `proto/inventory.proto`
 
-### Distributed Tracing (OpenTelemetry → Jaeger)
+### Distributed Tracing (OpenTelemetry -> Jaeger)
 
 Every HTTP request gets a trace ID that follows it through:
 ```
-Traefik → Auth Service → PostgreSQL
-Traefik → User Service → PostgreSQL + Redis
-Traefik → Inventory Service → MongoDB + Redis
+Traefik -> Envoy -> Auth Service -> PostgreSQL
+Traefik -> Envoy -> User Service -> PostgreSQL + Redis
+Traefik -> Envoy -> Inventory Service -> MongoDB + Redis
 ```
 
-View traces at Jaeger UI (`:16686`). Select a service, find a trace, see the waterfall breakdown of where time was spent.
+View traces at Jaeger UI (`:16686`). Select a service, find a trace, see the waterfall.
 
 ## Chaos Testing
 
-Run the chaos test suite:
 ```bash
 ./chaos/chaos-test.sh
 ```
 
-### Test Results
-
 | Test | Result | Finding |
 |------|--------|---------|
-| Service crash & recovery | ⚠️ | `docker compose kill` = admin stop, not crash. Real crashes trigger restart. |
-| Database failure cascade | ✅ | User + Inventory unaffected when auth-db dies |
-| Cache failure (Redis) | ✅ | Circuit breaker trips → services fall back to DB |
-| Gateway SPOF | ✅ | Confirmed: gateway death = total external outage |
-| Load test | ✅ | 7ms avg response time at 50 req burst |
+| Service crash & recovery | ✅ | Envoy retries 3x automatically before returning 503 |
+| Database failure cascade | ✅ | Fault isolation — other services unaffected |
+| Cache failure (Redis) | ✅ | Circuit breaker trips, services fall back to DB |
+| Gateway SPOF | ✅ | Confirmed single point of failure |
+| Load test | ✅ | 7ms avg response through mesh |
 
 ## Technology Choices
 
 | Choice | Why |
 |--------|-----|
-| **Go** | Kubernetes, Docker, Prometheus all written in Go. 5-10MB per service. Static typing enforces contracts. |
-| **PostgreSQL** (auth, user) | Relational data with ACID guarantees. Referential integrity for users/profiles. |
-| **MongoDB** (inventory) | Flexible schemas for varied asset types (VMs, docs, API keys). |
-| **Redis** | Sub-millisecond reads for cache-aside pattern. LRU eviction at 64MB. |
-| **Traefik** | Auto-discovery, native Prometheus metrics, OpenTelemetry tracing built-in. |
-| **Jaeger** | Standard distributed tracing backend. Accepts OTLP protocol. |
-| **JWT** | Stateless auth. Any service validates without calling auth service. |
-| **bcrypt** | Intentionally slow hashing (250ms/hash). Brute-force resistant. |
+| **Go** | Kubernetes, Docker, Prometheus, Envoy ecosystem. 5-10MB per service. |
+| **Envoy** | Same proxy behind Istio, Linkerd, AWS App Mesh. Industry standard. |
+| **PostgreSQL** | ACID guarantees for auth/profile data. |
+| **MongoDB** | Flexible schemas for varied asset types. |
+| **Redis** | Sub-ms cache reads. LRU eviction at 64MB. |
+| **Traefik** | Native Prometheus metrics, OpenTelemetry tracing. |
+| **Jaeger** | Standard distributed tracing. Accepts OTLP. |
+| **gRPC + Protobuf** | Binary protocol, strict contracts, code generation. |
+| **JWT + bcrypt** | Stateless auth, brute-force resistant hashing. |
 
 ## Operations
 
 ```bash
-# Start
+# Start everything
 docker compose up -d --build
 
 # Stop (keep data)
@@ -228,8 +257,12 @@ docker compose down
 # Stop (delete all data)
 docker compose down -v
 
-# Logs
+# Logs for specific service
 docker compose logs -f auth-service
+
+# Envoy proxy stats
+curl http://localhost:8100/api/auth/health -v 2>&1 | grep Server
+# Should show: Server: envoy
 
 # Rebuild one service
 docker compose up -d --build inventory-service
@@ -242,33 +275,34 @@ docker stats --no-stream
 
 ```
 onboarding-dashboard/
-├── .env                                    # Environment variables (not committed)
-├── .env.example                            # Template for .env
-├── docker-compose.yml                      # All 11 containers orchestrated
+├── .env.example                            # Environment template
+├── docker-compose.yml                      # 14 containers orchestrated
 ├── README.md
 ├── proto/
-│   └── inventory.proto                     # gRPC service contract
+│   └── inventory.proto                     # gRPC service contract (protobuf)
 ├── gateway/
-│   └── traefik.yml                         # API routing config
+│   └── traefik.yml                         # API routing (through mesh)
+├── mesh/                                   # SERVICE MESH configs
+│   ├── envoy-auth.yml                      # Auth sidecar (retries, timeouts, CB)
+│   ├── envoy-user.yml                      # User sidecar
+│   └── envoy-inventory.yml                 # Inventory sidecar
 ├── services/
 │   ├── auth/
-│   │   ├── cmd/server/main.go              # Entry point
+│   │   ├── cmd/server/main.go
 │   │   ├── internal/
-│   │   │   ├── handler/auth.go             # Register, Login, Health
-│   │   │   ├── middleware/jwt.go           # JWT generation + validation
-│   │   │   ├── model/user.go              # User struct + DTOs
-│   │   │   └── tracing/tracing.go         # OpenTelemetry init
-│   │   ├── Dockerfile
-│   │   ├── go.mod / go.sum
+│   │   │   ├── handler/auth.go
+│   │   │   ├── middleware/jwt.go
+│   │   │   ├── model/user.go
+│   │   │   └── tracing/tracing.go
+│   │   └── Dockerfile
 │   ├── user/
 │   │   ├── cmd/server/main.go
 │   │   ├── internal/
-│   │   │   ├── handler/user.go             # Profile CRUD + gRPC client
+│   │   │   ├── handler/user.go             # Includes gRPC client
 │   │   │   ├── model/profile.go
 │   │   │   └── tracing/tracing.go
-│   │   ├── proto/inventorypb/              # Generated gRPC client code
-│   │   ├── Dockerfile
-│   │   ├── go.mod / go.sum
+│   │   ├── proto/inventorypb/              # Generated gRPC client
+│   │   └── Dockerfile
 │   └── inventory/
 │       ├── cmd/server/main.go              # HTTP + gRPC dual server
 │       ├── internal/
@@ -276,23 +310,41 @@ onboarding-dashboard/
 │       │   │   ├── inventory.go            # REST handlers
 │       │   │   └── grpc.go                 # gRPC handler
 │       │   ├── model/asset.go
-│       │   ├── circuitbreaker/breaker.go   # Circuit breaker implementation
+│       │   ├── circuitbreaker/breaker.go
 │       │   └── tracing/tracing.go
-│       ├── proto/inventorypb/              # Generated gRPC server code
-│       ├── Dockerfile
-│       ├── go.mod / go.sum
+│       ├── proto/inventorypb/              # Generated gRPC server
+│       └── Dockerfile
 ├── monitoring/
-│   ├── prometheus.yml                      # Scrape config
+│   ├── prometheus.yml                      # Scrapes services + Envoy stats
 │   └── grafana/dashboards/
 └── chaos/
     └── chaos-test.sh                       # 5 failure scenario tests
 ```
 
+## Container Inventory (14 total)
+
+| Layer | Container | Image | Purpose |
+|-------|-----------|-------|---------|
+| Gateway | gateway | traefik:v3.2 | Path-based routing, metrics, tracing |
+| Mesh | auth-proxy | envoyproxy/envoy:v1.31 | Sidecar: retries, timeouts, CB |
+| Mesh | user-proxy | envoyproxy/envoy:v1.31 | Sidecar: retries, timeouts, CB |
+| Mesh | inventory-proxy | envoyproxy/envoy:v1.31 | Sidecar: retries, timeouts, CB |
+| Service | auth-service | Go binary | JWT auth, registration, login |
+| Service | user-service | Go binary | Profiles, onboarding, gRPC client |
+| Service | inventory-service | Go binary | Assets, gRPC server |
+| Database | auth-db | postgres:17-alpine | Auth credentials |
+| Database | user-db | postgres:17-alpine | User profiles |
+| Database | inventory-db | mongo:7 | Asset documents |
+| Cache | redis | redis:7-alpine | Cache-aside, token storage |
+| Monitoring | prometheus | prom/prometheus | Metrics collection |
+| Monitoring | grafana | grafana/grafana | Dashboards |
+| Tracing | jaeger | jaegertracing/all-in-one | Distributed traces |
+
 ## Future Improvements
 
-- [ ] **Service Mesh** — Sidecar proxies for mTLS, retries, and traffic shaping without code changes
-- [ ] **Rate Limiting** — Per-user request throttling at the gateway level
+- [ ] **mTLS between services** — Envoy can terminate and originate TLS for encrypted inter-service traffic
+- [ ] **Rate Limiting** — Per-user request throttling at gateway or mesh level
 - [ ] **Database Migrations** — golang-migrate for versioned, reversible schema changes
-- [ ] **Connection Reconnection** — Auto-reconnect to databases after DB restarts
 - [ ] **Frontend Dashboard** — Minimal web UI for the onboarding flow
 - [ ] **CI/CD Pipeline** — Automated build, test, and deploy on push
+- [ ] **Kubernetes Migration** — Move from Docker Compose to K8s with Istio service mesh
