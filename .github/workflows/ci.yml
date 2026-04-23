@@ -5,6 +5,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   lint-and-build:
@@ -27,7 +28,7 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
-      - name: Vet (static analysis)
+      - name: Vet
         run: go vet ./...
 
       - name: Build
@@ -59,5 +60,5 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate docker-compose.yml
+      - name: Validate docker-compose
         run: docker compose -f docker-compose.yml config --quiet
